@@ -1,12 +1,11 @@
 package main
 
 import (
-	"context"
 	"log"
 	"net"
 	"os"
 
-	pb "github.com/neoul/grpc-notification/proto"
+	noti "github.com/neoul/grpc-notification/proto"
 	"google.golang.org/grpc"
 )
 
@@ -16,13 +15,21 @@ const (
 )
 
 type notificationServer struct {
-	name string
-	pb.UnimplementedNotificationServer
+	serverName string
+	client     map[string]noti.Notification_SubscribeServer
 }
 
 // Register RPC implementation
-func (s *notificationServer) Register(ctx context.Context, req *pb.RegistrationRequest) (*pb.RegistrationResponse, error) {
-	return &pb.RegistrationResponse{ClientName: req.GetClientName(), ServerName: s.name}, nil
+
+func (notiServer *notificationServer) Subscribe(req *noti.Subscription, srv noti.Notification_SubscribeServer) error {
+	log.Printf("Received Subscription: %v", req)
+	notiServer.client[req.GetName()] = srv
+	if err := srv.Send(&noti.Notification{Message: "HI " + notiServer.serverName}); err != nil {
+		// log.Fatalf("Send failed %v", err)
+		log.Printf("Send failed %v", err)
+		return err
+	}
+	return nil
 }
 
 func main() {
@@ -35,9 +42,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	s := grpc.NewServer()
-	pb.RegisterNotificationServer(s, &notificationServer{name: name})
-	if err := s.Serve(lis); err != nil {
+	grpcServer := grpc.NewServer()
+	noti.RegisterNotificationServer(grpcServer, &notificationServer{serverName: name, client: make(map[string]noti.Notification_SubscribeServer)})
+	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }

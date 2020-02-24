@@ -4,9 +4,8 @@ import (
 	"context"
 	"log"
 	"os"
-	"time"
 
-	pb "github.com/neoul/grpc-notification/proto"
+	noti "github.com/neoul/grpc-notification/proto"
 	"google.golang.org/grpc"
 )
 
@@ -27,20 +26,22 @@ func main() {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	c := pb.NewNotificationClient(conn)
+	notiClient := noti.NewNotificationClient(conn)
 
 	// Contact the server and print out its response.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	r, err := c.Register(ctx, &pb.RegistrationRequest{ClientName: name})
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// defer cancel()
+	ctx := context.Background()
+	clientStream, err := notiClient.Subscribe(ctx, &noti.Subscription{Name: name})
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		log.Fatalf("could not subscribe: %v", err)
 	}
-	log.Printf("Greeting %s by %s", r.GetClientName(), r.GetServerName())
 
-	c.Subscribe(ctx, &pb.SubscribeRequest{ClientName: name})
-	if err != nil {
-		log.Fatalf("could not greet: %v", err)
-	}
-	log.Printf("Greeting %s by %s", r.GetClientName(), r.GetServerName())
+	// log.Printf("Greeting %s by %s", r.GetClientName(), r.GetServerName())
+
+	// c.Subscribe(ctx, &pb.SubscribeRequest{ClientName: name})
+	// if err != nil {
+	// 	log.Fatalf("could not greet: %v", err)
+	// }
+	// log.Printf("Greeting %s by %s", r.GetClientName(), r.GetServerName())
 }

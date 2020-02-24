@@ -110,16 +110,16 @@ func init() {
 func init() { proto.RegisterFile("proto/notification.proto", fileDescriptor_beb4fc010f5c4b1c) }
 
 var fileDescriptor_beb4fc010f5c4b1c = []byte{
-	// 134 bytes of a gzipped FileDescriptorProto
+	// 136 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x92, 0x28, 0x28, 0xca, 0x2f,
 	0xc9, 0xd7, 0xcf, 0xcb, 0x2f, 0xc9, 0x4c, 0xcb, 0x4c, 0x4e, 0x2c, 0xc9, 0xcc, 0xcf, 0xd3, 0x03,
 	0x0b, 0x29, 0x29, 0x71, 0xf1, 0x04, 0x97, 0x26, 0x15, 0x27, 0x17, 0x65, 0x16, 0x80, 0x44, 0x85,
 	0x84, 0xb8, 0x58, 0xf2, 0x12, 0x73, 0x53, 0x25, 0x18, 0x15, 0x18, 0x35, 0x38, 0x83, 0xc0, 0x6c,
 	0x25, 0x0d, 0x2e, 0x1e, 0x3f, 0x24, 0x9d, 0x42, 0x12, 0x5c, 0xec, 0xb9, 0xa9, 0xc5, 0xc5, 0x89,
-	0xe9, 0xa9, 0x12, 0xcc, 0x60, 0x65, 0x30, 0xae, 0x91, 0x35, 0x17, 0x0f, 0xb2, 0x1d, 0x42, 0xda,
+	0xe9, 0xa9, 0x12, 0xcc, 0x60, 0x65, 0x30, 0xae, 0x91, 0x2d, 0x17, 0x0f, 0xb2, 0x1d, 0x42, 0xba,
 	0x5c, 0x9c, 0x50, 0xd3, 0x93, 0x52, 0x85, 0x78, 0xf5, 0x90, 0x6d, 0x92, 0xe2, 0xd5, 0x43, 0x36,
-	0xd4, 0x80, 0x31, 0x89, 0x0d, 0xec, 0x22, 0x63, 0x40, 0x00, 0x00, 0x00, 0xff, 0xff, 0x3a, 0xc1,
-	0xe1, 0xa5, 0xad, 0x00, 0x00, 0x00,
+	0x54, 0x83, 0xd1, 0x80, 0x31, 0x89, 0x0d, 0xec, 0x26, 0x63, 0x40, 0x00, 0x00, 0x00, 0xff, 0xff,
+	0xcb, 0x53, 0x66, 0x21, 0xaf, 0x00, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -134,7 +134,7 @@ const _ = grpc.SupportPackageIsVersion6
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type NotificationClient interface {
-	Subscribe(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (Notification_SubscribeClient, error)
+	Subscribe(ctx context.Context, opts ...grpc.CallOption) (Notification_SubscribeClient, error)
 }
 
 type notificationClient struct {
@@ -145,28 +145,27 @@ func NewNotificationClient(cc grpc.ClientConnInterface) NotificationClient {
 	return &notificationClient{cc}
 }
 
-func (c *notificationClient) Subscribe(ctx context.Context, in *Subscription, opts ...grpc.CallOption) (Notification_SubscribeClient, error) {
+func (c *notificationClient) Subscribe(ctx context.Context, opts ...grpc.CallOption) (Notification_SubscribeClient, error) {
 	stream, err := c.cc.NewStream(ctx, &_Notification_serviceDesc.Streams[0], "/notification/Subscribe", opts...)
 	if err != nil {
 		return nil, err
 	}
 	x := &notificationSubscribeClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
 	return x, nil
 }
 
 type Notification_SubscribeClient interface {
+	Send(*Subscription) error
 	Recv() (*Notification, error)
 	grpc.ClientStream
 }
 
 type notificationSubscribeClient struct {
 	grpc.ClientStream
+}
+
+func (x *notificationSubscribeClient) Send(m *Subscription) error {
+	return x.ClientStream.SendMsg(m)
 }
 
 func (x *notificationSubscribeClient) Recv() (*Notification, error) {
@@ -179,14 +178,14 @@ func (x *notificationSubscribeClient) Recv() (*Notification, error) {
 
 // NotificationServer is the server API for Notification service.
 type NotificationServer interface {
-	Subscribe(*Subscription, Notification_SubscribeServer) error
+	Subscribe(Notification_SubscribeServer) error
 }
 
 // UnimplementedNotificationServer can be embedded to have forward compatible implementations.
 type UnimplementedNotificationServer struct {
 }
 
-func (*UnimplementedNotificationServer) Subscribe(req *Subscription, srv Notification_SubscribeServer) error {
+func (*UnimplementedNotificationServer) Subscribe(srv Notification_SubscribeServer) error {
 	return status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
 }
 
@@ -195,15 +194,12 @@ func RegisterNotificationServer(s *grpc.Server, srv NotificationServer) {
 }
 
 func _Notification_Subscribe_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Subscription)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(NotificationServer).Subscribe(m, &notificationSubscribeServer{stream})
+	return srv.(NotificationServer).Subscribe(&notificationSubscribeServer{stream})
 }
 
 type Notification_SubscribeServer interface {
 	Send(*Notification) error
+	Recv() (*Subscription, error)
 	grpc.ServerStream
 }
 
@@ -215,6 +211,14 @@ func (x *notificationSubscribeServer) Send(m *Notification) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func (x *notificationSubscribeServer) Recv() (*Subscription, error) {
+	m := new(Subscription)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 var _Notification_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "notification",
 	HandlerType: (*NotificationServer)(nil),
@@ -224,6 +228,7 @@ var _Notification_serviceDesc = grpc.ServiceDesc{
 			StreamName:    "Subscribe",
 			Handler:       _Notification_Subscribe_Handler,
 			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "proto/notification.proto",

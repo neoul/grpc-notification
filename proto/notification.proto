@@ -6,7 +6,7 @@
 syntax = "proto3";
 
 service notification {
-	rpc Subscribe (Subscription) returns (stream Notification);
+	rpc Subscribe (stream Subscription) returns (stream Notification);
 }
 
 message Subscription {
