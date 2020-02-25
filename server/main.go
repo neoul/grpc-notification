@@ -82,8 +82,8 @@ func (notiServer *notificationServer) Notify() {
 
 func main() {
 	encrypt := flag.Bool("encrypt", false, "enable encryption of gRPC")
-	certfile := flag.String("certfile", "", "server certificate (public key)")
-	keyfile := flag.String("keyfile", "", "server private key")
+	certfile := flag.String("certfile", "", "'server.pem' server certificate (public key)")
+	keyfile := flag.String("keyfile", "", "'server.key' server private key")
 	flag.Usage = func() {
 		fmt.Printf(" %s <FLAG> <SERVER_NAME>\n", os.Args[0])
 		flag.PrintDefaults()
