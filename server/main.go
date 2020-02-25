@@ -1,22 +1,25 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
+	"strings"
 
 	noti "github.com/neoul/grpc-notification/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // stdin -> select -> send
 // recv  ->
 
 const (
-	port       = ":50051"
-	serverName = "notification-server"
+	port = ":50051"
+	name = "notification-server"
 )
 
 type notitificationClient struct {
@@ -25,7 +28,9 @@ type notitificationClient struct {
 }
 
 type notificationServer struct {
-	serverName string
+	name       string
+	enabled    chan bool
+	grpcServer *grpc.Server
 	client     map[string]*notitificationClient
 }
 
@@ -39,10 +44,10 @@ func (notiServer *notificationServer) Subscribe(srv noti.Notification_SubscribeS
 					break
 				}
 			}
-			log.Printf("%v\n", err)
 			if err == io.EOF {
 				return nil
 			}
+			log.Printf("%v\n", err)
 			return err
 		}
 		name := in.GetName()
@@ -56,10 +61,16 @@ func (notiServer *notificationServer) Subscribe(srv noti.Notification_SubscribeS
 
 func (notiServer *notificationServer) Notify() {
 	var in string
+	// var done bool = false
 	for {
-		fmt.Printf("IN> ")
+		fmt.Printf("%s> ", notiServer.name)
 		fmt.Scan(&in)
-		// time.Sleep(1 * time.Second)
+		// log.Println(in, strings.HasPrefix(in, "qu"))
+		if strings.HasPrefix(in, "qu") {
+			notiServer.grpcServer.GracefulStop()
+			notiServer.enabled <- true
+			return
+		}
 		for k, client := range notiServer.client {
 			log.Printf("Send notification to %s", k)
 			if err := client.stream.Send(&noti.Notification{Message: in}); err != nil {
@@ -70,20 +81,45 @@ func (notiServer *notificationServer) Notify() {
 }
 
 func main() {
-	name := serverName
-	if len(os.Args) > 1 {
-		name = os.Args[1]
+	encrypt := flag.Bool("encrypt", false, "enable encryption of gRPC")
+	certfile := flag.String("certfile", "", "server certificate (public key)")
+	keyfile := flag.String("keyfile", "", "server private key")
+	flag.Usage = func() {
+		fmt.Printf(" %s <FLAG> <SERVER_NAME>\n", os.Args[0])
+		flag.PrintDefaults()
 	}
+	flag.Parse()
+	args := flag.Args()
+	name := name
+	if len(args) > 0 {
+		name = args[0]
+	}
+	fmt.Printf("Server starts with '%s'\n", name)
 
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	grpcServer := grpc.NewServer()
-	notiServer := &notificationServer{serverName: name, client: make(map[string]*notitificationClient)}
+	var grpcServer *grpc.Server
+	if *encrypt {
+		creds, err := credentials.NewServerTLSFromFile(*certfile, *keyfile)
+		if err != nil {
+			log.Fatalf("failed to load TLS: %v", err)
+		}
+		grpcServer = grpc.NewServer(grpc.Creds(creds))
+		fmt.Println("Server start within encryption mode ..")
+	} else {
+		grpcServer = grpc.NewServer()
+	}
+	notiServer := &notificationServer{
+		name:       name,
+		enabled:    make(chan bool),
+		grpcServer: grpcServer,
+		client:     make(map[string]*notitificationClient)}
 	noti.RegisterNotificationServer(grpcServer, notiServer)
 	go notiServer.Notify()
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
+	<-notiServer.enabled
 }

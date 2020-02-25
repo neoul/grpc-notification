@@ -1,3 +1,9 @@
 pkg
 bin
 **/main
+ca.crt
+ca.key
+ca.srl
+server.crt
+server.csr
+server.key
