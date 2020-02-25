@@ -29,19 +29,19 @@ func main() {
 	notiClient := noti.NewNotificationClient(conn)
 
 	// Contact the server and print out its response.
-	// ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	// defer cancel()
 	ctx := context.Background()
-	clientStream, err := notiClient.Subscribe(ctx, &noti.Subscription{Name: name})
+	subClient, err := notiClient.Subscribe(ctx)
 	if err != nil {
 		log.Fatalf("could not subscribe: %v", err)
 	}
-
-	// log.Printf("Greeting %s by %s", r.GetClientName(), r.GetServerName())
-
-	// c.Subscribe(ctx, &pb.SubscribeRequest{ClientName: name})
-	// if err != nil {
-	// 	log.Fatalf("could not greet: %v", err)
-	// }
-	// log.Printf("Greeting %s by %s", r.GetClientName(), r.GetServerName())
+	if err := subClient.Send(&noti.Subscription{Name: name}); err != nil {
+		log.Fatalf("could not send: %v", err)
+	}
+	for {
+		noti, err := subClient.Recv()
+		if err != nil {
+			log.Fatalf("could not recv: %v", err)
+		}
+		log.Println(noti.GetMessage())
+	}
 }
