@@ -5,8 +5,10 @@ SHELL = /bin/bash
 .EXPORT_ALL_VARIABLES:
 PORT?=50051
 HOST?=localhost
-CAFILE?="ca"
-CERTFILE?="server"
+CA_FILE?="ca"
+CERT_FILE?="server"
+CERT_CN?="HFR NE"
+CERT_DATE?="36500"
 
 .PHONY: proto
 
@@ -22,20 +24,39 @@ cert: ## Create certificates to encrypt the gRPC connection
 	# openssl req -new -key service.key -out service.csr -config certificate.conf
 	# openssl x509 -req -in service.csr -CA ca.cert -CAkey ca.key -CAcreateserial \
 	# 	-out service.pem -days 365 -sha256 -extfile certificate.conf -extensions req_ext
-	openssl genrsa -out $(CAFILE).key 2048
-	openssl req -new -x509 -days 36500 -key $(CAFILE).key -subj "/C=KR/L=AY/O=HFR,Inc./CN=HFR's Self Signed CA" -out $(CAFILE).crt
-	openssl req -newkey rsa:2048 -nodes -keyout $(CERTFILE).key -subj "/C=KR/L=AY/O=HFR,Inc./CN=HFR NE" -out $(CERTFILE).csr
-	openssl x509 -req -extfile <(printf "subjectAltName=DNS:localhost") -days 365 -in $(CERTFILE).csr -CA ca.crt -CAkey ca.key -CAcreateserial -out $(CERTFILE).crt
+	openssl genrsa -out $(CA_FILE).key 2048
+	openssl req -new -x509 -days $(CERT_DATE) -key $(CA_FILE).key -subj "/C=KR/L=AY/O=HFR,Inc./CN=HFR's Self Signed CA" -out $(CA_FILE).crt
+	openssl req -newkey rsa:2048 -nodes -keyout $(CERT_FILE).key -subj "/C=KR/L=AY/O=HFR,Inc./CN=HFR NE" -out $(CERT_FILE).csr
+	openssl x509 -req -extfile <(printf "subjectAltName=DNS:localhost") -days $(CERT_DATE) -in $(CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CERT_FILE).crt
+
+cert-ca:
+	#Generate a self-signed certificate for CA if you don’t have one
+	openssl req -x509 -days $(CERT_DATE) -nodes -newkey rsa:2048 -keyout $(CA_FILE).key -subj "/C=KR/L=AY/O=HFR,Inc./CN=HFR's Self Signed CA" -out $(CA_FILE).crt
+
+cert-file:
+	#Generate a private key & certificate request for server
+	#CN (Common Name) or FQDN is mandatory and must be server domain name
+	#FQDN (Fully Qualified Domain Name) 
+	openssl req -new -days $(CERT_DATE) -nodes -newkey rsa:2048 -keyout $(CERT_FILE).key -subj /C=KR/L=AY/O=HFR,Inc./CN=$(CERT_CN) -out $(CERT_FILE).csr
+	#CA sign server certificate request:
+	openssl x509 -req -days $(CERT_DATE) -extfile <(printf "subjectAltName=DNS:localhost") -in $(CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CERT_FILE).crt -sha256
+
+clean:
+	rm -f client/main
+	rm -f server/main
+	rm -f *.crt
+	rm -f *.csr
+	rm -f *.key
 
 debug:
 	export GRPC_TRACE=all
 	export GRPC_VERBOSITY=DEBUG
 
 run-client:
-	go run client/main.go ${USER}
+	go run client/main.go -certfile $(CA_FILE).crt -encrypt ${USER}
 
 run-server:
-	go run server/main.go
+	go run server/main.go -encrypt -certfile $(CERT_FILE).crt -keyfile $(CERT_FILE).key
 
 # install-docker: ## Install Docker
 # 	curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
@@ -61,7 +82,7 @@ run-server:
 # 	go run client/main.go -id $(ID) -mode 2
 
 # run-client-ca: ## Run Client with a given ID with CA
-# 	go run client/main.go -id $(ID) -file $(CAFILE) -mode 3
+# 	go run client/main.go -id $(ID) -file $(CA_FILE) -mode 3
 
 # run-client-file: ## Run Client with a given ID and provide the Server certificate
 # 	go run client/main.go -id $(ID) -mode 4

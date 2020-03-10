@@ -19,7 +19,7 @@ const (
 
 func main() {
 	encrypt := flag.Bool("encrypt", false, "enable encryption of gRPC")
-	certfile := flag.String("certfile", "", "'ca.pem or server.pem' (server certificate or CA certificate)")
+	certfile := flag.String("certfile", "", "'ca.pem (ca.crt) or server.pem (server.crt)' (server certificate or CA certificate)")
 	flag.Usage = func() {
 		fmt.Printf(" %s <FLAG> <CLIENT_NAME>\n", os.Args[0])
 		flag.PrintDefaults()
