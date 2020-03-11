@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	noti "github.com/neoul/grpc-notification/proto"
@@ -18,8 +19,7 @@ import (
 // recv  ->
 
 const (
-	port = ":50051"
-	name = "notification-server"
+	name = "grpc-notification-server"
 )
 
 type notitificationClient struct {
@@ -81,6 +81,7 @@ func (notiServer *notificationServer) Notify() {
 }
 
 func main() {
+	port := flag.Int("port", 50051, "port number")
 	encrypt := flag.Bool("encrypt", false, "enable encryption of gRPC")
 	certfile := flag.String("certfile", "", "'server.pem (server.crt)' server certificate (public key)")
 	keyfile := flag.String("keyfile", "", "'server.key' server private key")
@@ -95,8 +96,9 @@ func main() {
 		name = args[0]
 	}
 	fmt.Printf("Server starts with '%s'\n", name)
-
-	lis, err := net.Listen("tcp", port)
+	sport := ":" + strconv.Itoa(*port)
+	log.Println(sport)
+	lis, err := net.Listen("tcp", sport)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}

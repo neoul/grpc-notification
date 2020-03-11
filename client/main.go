@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 
 	noti "github.com/neoul/grpc-notification/proto"
 	"google.golang.org/grpc"
@@ -13,11 +15,12 @@ import (
 )
 
 const (
-	address = "localhost:50051"
-	name    = "notification-client"
+	name = "notification-client"
 )
 
 func main() {
+	addr := flag.String("addr", "127.0.0.1", "ip address of gRPC server")
+	port := flag.Int("port", 50051, "port number")
 	encrypt := flag.Bool("encrypt", false, "enable encryption of gRPC")
 	certfile := flag.String("certfile", "", "'ca.pem (ca.crt) or server.pem (server.crt)' (server certificate or CA certificate)")
 	flag.Usage = func() {
@@ -43,8 +46,12 @@ func main() {
 		opt = grpc.WithInsecure()
 	}
 
+	serverAddr := strings.TrimPrefix(*addr, "IP:")
+	serverAddr = strings.TrimPrefix(serverAddr, "DNS:")
+	serverAddr = serverAddr + ":" + strconv.Itoa(*port)
+	log.Println(serverAddr)
 	// Set up a connection to the server.
-	conn, err := grpc.Dial(address, opt, grpc.WithBlock())
+	conn, err := grpc.Dial(serverAddr, opt, grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("failed to connect: %v", err)
 	}

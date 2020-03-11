@@ -3,43 +3,59 @@ ID?=1
 SHELL = /bin/bash
 
 .EXPORT_ALL_VARIABLES:
-PORT?=50051
-HOST?=localhost
-CA_FILE?="ca"
-CERT_FILE?="server"
-CERT_CN?="HFR NE"
-CERT_DATE?="36500"
+# PORT?=50051
+# HOST?=localhost
+
+CLIENT_NAME?=${USER}
+SERVER_NAME?=grpc-notification-server
+
+CA_FILE?=ca
+CA_C?=KR
+CA_L?=AN
+CA_O?=HFR,Inc.
+CA_CN?=HFR's Self-signed CA
+
+CERT_FILE?=server
+ADDR?=IP:127.0.0.1
+# ADDR?=DNS:localhost
+# ADDR?=IP:192.168.0.77
+CERT_CN?=HFR NE
+CERT_DATE?=36500
+CERT_C?=KR
+CERT_L?=AY
+CERT_O?=HFR,Inc.
+CERT_CN?=HFR NE
 
 .PHONY: proto
 
-all: cert docker-build
+all: cert-without-ca docker-build
 
 proto: ## Compile protobuf file to generate Go source code for gRPC Services
 	protoc --go_out=plugins=grpc:. proto/notification.proto
 
-cert: ## Create certificates to encrypt the gRPC connection
-	# openssl genrsa -out ca.key 4096
-	# openssl req -new -x509 -key ca.key -sha256 -subj "/C=US/ST=NJ/O=CA, Inc." -days 365 -out ca.cert
-	# openssl genrsa -out service.key 4096
-	# openssl req -new -key service.key -out service.csr -config certificate.conf
-	# openssl x509 -req -in service.csr -CA ca.cert -CAkey ca.key -CAcreateserial \
-	# 	-out service.pem -days 365 -sha256 -extfile certificate.conf -extensions req_ext
+cert-without-ca: # Generate server.key and server crt (public key) without root CA
+	openssl req -newkey rsa:2048 -nodes -keyout $(CERT_FILE).key -subj "/C=$(CERT_C)/L=$(CERT_L)/O=$(CERT_O)/CN=$(CERT_CN)" -out $(CERT_FILE).csr
+	openssl x509 -req -extfile <(printf "subjectAltName=$(ADDR)") -days $(CERT_DATE) -signkey $(CERT_FILE).key -in $(CERT_FILE).csr -out $(CERT_FILE).crt
+
+cert-with-ca: ## Create certificates to encrypt the gRPC connection
 	openssl genrsa -out $(CA_FILE).key 2048
-	openssl req -new -x509 -days $(CERT_DATE) -key $(CA_FILE).key -subj "/C=KR/L=AY/O=HFR,Inc./CN=HFR's Self Signed CA" -out $(CA_FILE).crt
-	openssl req -newkey rsa:2048 -nodes -keyout $(CERT_FILE).key -subj "/C=KR/L=AY/O=HFR,Inc./CN=HFR NE" -out $(CERT_FILE).csr
-	openssl x509 -req -extfile <(printf "subjectAltName=DNS:localhost") -days $(CERT_DATE) -in $(CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CERT_FILE).crt
+	openssl req -new -x509 -days $(CERT_DATE) -key $(CA_FILE).key -subj "/C=$(CA_C)/L=$(CA_L)/O=$(CA_O)/CN=$(CA_CN)" -out $(CA_FILE).crt
+	openssl req -newkey rsa:2048 -nodes -keyout $(CERT_FILE).key -subj "/C=$(CERT_C)/L=$(CERT_L)/O=$(CERT_O)/CN=$(CERT_CN)" -out $(CERT_FILE).csr
+	# openssl x509 -req -extfile <(printf "subjectAltName=DNS:localhost") -days $(CERT_DATE) -in $(CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CERT_FILE).crt
+	# subjectAltName should be an IP address if it is self-signed CA for gRPC
+	openssl x509 -req -extfile <(printf "subjectAltName=$(ADDR)") -days $(CERT_DATE) -in $(CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CERT_FILE).crt
 
 cert-ca:
 	#Generate a self-signed certificate for CA if you don’t have one
-	openssl req -x509 -days $(CERT_DATE) -nodes -newkey rsa:2048 -keyout $(CA_FILE).key -subj "/C=KR/L=AY/O=HFR,Inc./CN=HFR's Self Signed CA" -out $(CA_FILE).crt
+	openssl req -x509 -days $(CERT_DATE) -nodes -newkey rsa:2048 -keyout $(CA_FILE).key -subj "/C=$(CA_C)/L=$(CA_L)/O=$(CA_O)/CN=$(CA_CN)" -out $(CA_FILE).crt
 
 cert-file:
 	#Generate a private key & certificate request for server
 	#CN (Common Name) or FQDN is mandatory and must be server domain name
 	#FQDN (Fully Qualified Domain Name) 
-	openssl req -new -days $(CERT_DATE) -nodes -newkey rsa:2048 -keyout $(CERT_FILE).key -subj /C=KR/L=AY/O=HFR,Inc./CN=$(CERT_CN) -out $(CERT_FILE).csr
+	openssl req -new -days $(CERT_DATE) -nodes -newkey rsa:2048 -keyout $(CERT_FILE).key -subj "/C=$(CERT_C)/L=$(CERT_L)/O=$(CERT_O)/CN=$(CERT_CN)" -out $(CERT_FILE).csr
 	#CA sign server certificate request:
-	openssl x509 -req -days $(CERT_DATE) -extfile <(printf "subjectAltName=DNS:localhost") -in $(CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CERT_FILE).crt -sha256
+	openssl x509 -req -days $(CERT_DATE) -extfile <(printf "subjectAltName=$(ADDR)") -in $(CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CERT_FILE).crt -sha256
 
 clean:
 	rm -f client/main
@@ -48,15 +64,17 @@ clean:
 	rm -f *.csr
 	rm -f *.key
 
-debug:
-	export GRPC_TRACE=all
-	export GRPC_VERBOSITY=DEBUG
-
 run-client:
-	go run client/main.go -certfile $(CA_FILE).crt -encrypt ${USER}
+	go run client/main.go -addr $(ADDR) $(CLIENT_NAME)
 
 run-server:
-	go run server/main.go -encrypt -certfile $(CERT_FILE).crt -keyfile $(CERT_FILE).key
+	go run server/main.go $(SERVER_NAME)
+
+run-client-secure:
+	go run client/main.go -addr $(ADDR) -certfile $(CERT_FILE).crt -encrypt $(CLIENT_NAME)
+
+run-server-secure:
+	go run server/main.go -encrypt -certfile $(CERT_FILE).crt -keyfile $(CERT_FILE).key $(SERVER_NAME)
 
 # install-docker: ## Install Docker
 # 	curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
