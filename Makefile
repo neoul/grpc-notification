@@ -33,7 +33,7 @@ all: cert-without-ca docker-build
 proto: ## Compile protobuf file to generate Go source code for gRPC Services
 	protoc --go_out=plugins=grpc:. proto/notification.proto
 
-cert-without-ca: # Generate server.key and server crt (public key) without root CA
+cert-without-ca: ## Generate server.key and server crt (public key) without root CA
 	openssl req -newkey rsa:2048 -nodes -keyout $(CERT_FILE).key -subj "/C=$(CERT_C)/L=$(CERT_L)/O=$(CERT_O)/CN=$(CERT_CN)" -out $(CERT_FILE).csr
 	openssl x509 -req -extfile <(printf "subjectAltName=$(ADDR)") -days $(CERT_DATE) -signkey $(CERT_FILE).key -in $(CERT_FILE).csr -out $(CERT_FILE).crt
 
@@ -45,11 +45,11 @@ cert-with-ca: ## Create certificates to encrypt the gRPC connection
 	# subjectAltName should be an IP address if it is self-signed CA for gRPC
 	openssl x509 -req -extfile <(printf "subjectAltName=$(ADDR)") -days $(CERT_DATE) -in $(CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CERT_FILE).crt
 
-cert-ca:
+cert-ca: ## Create Root CA (ca.crt, ca.key)
 	#Generate a self-signed certificate for CA if you don’t have one
 	openssl req -x509 -days $(CERT_DATE) -nodes -newkey rsa:2048 -keyout $(CA_FILE).key -subj "/C=$(CA_C)/L=$(CA_L)/O=$(CA_O)/CN=$(CA_CN)" -out $(CA_FILE).crt
 
-cert-file:
+cert-file: ## Create Certificate (CERT_FILE.crt, CERT_FILE.key)
 	#Generate a private key & certificate request for server
 	#CN (Common Name) or FQDN is mandatory and must be server domain name
 	#FQDN (Fully Qualified Domain Name) 
@@ -57,23 +57,23 @@ cert-file:
 	#CA sign server certificate request:
 	openssl x509 -req -days $(CERT_DATE) -extfile <(printf "subjectAltName=$(ADDR)") -in $(CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CERT_FILE).crt -sha256
 
-clean:
+clean: ## clean output
 	rm -f client/main
 	rm -f server/main
 	rm -f *.crt
 	rm -f *.csr
 	rm -f *.key
 
-run-client:
+run-client: ## Run client
 	go run client/main.go -addr $(ADDR) $(CLIENT_NAME)
 
-run-server:
+run-server: ## Run server
 	go run server/main.go $(SERVER_NAME)
 
-run-client-secure:
+run-client-secure: # Run client within secure mode
 	go run client/main.go -addr $(ADDR) -certfile $(CERT_FILE).crt -encrypt $(CLIENT_NAME)
 
-run-server-secure:
+run-server-secure: # Run gRPC server within secure mode
 	go run server/main.go -encrypt -certfile $(CERT_FILE).crt -keyfile $(CERT_FILE).key $(SERVER_NAME)
 
 # install-docker: ## Install Docker
