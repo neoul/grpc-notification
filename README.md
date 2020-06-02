@@ -22,6 +22,12 @@ make cert-without-ca ADDR=IP:192.168.0.77
 make cert-with-ca ADDR=IP:192.168.0.77
 ```
 
+### Create client certificate using root CA
+
+```bash
+make cert-file CERT_FILE=client ADDR=IP:192.168.0.77 CERT_CN=gclient
+```
+
 ## Enable gRPC debug
 
 ```bash

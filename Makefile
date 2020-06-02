@@ -19,12 +19,14 @@ CERT_FILE?=server
 ADDR?=IP:127.0.0.1
 # ADDR?=DNS:localhost
 # ADDR?=IP:192.168.0.77
-CERT_CN?=HFR NE
 CERT_DATE?=36500
 CERT_C?=KR
 CERT_L?=AY
 CERT_O?=HFR,Inc.
 CERT_CN?=HFR NE
+
+CLIENT_CERT_FILE?=client
+CLIENT_CERT_CN?=HFR gRPC Client
 
 .PHONY: proto
 
@@ -56,6 +58,10 @@ cert-file: ## Create Certificate (CERT_FILE.crt, CERT_FILE.key)
 	openssl req -new -days $(CERT_DATE) -nodes -newkey rsa:2048 -keyout $(CERT_FILE).key -subj "/C=$(CERT_C)/L=$(CERT_L)/O=$(CERT_O)/CN=$(CERT_CN)" -out $(CERT_FILE).csr
 	#CA sign server certificate request:
 	openssl x509 -req -days $(CERT_DATE) -extfile <(printf "subjectAltName=$(ADDR)") -in $(CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CERT_FILE).crt -sha256
+
+client-cert-file:
+	openssl req -newkey rsa:2048 -nodes -keyout $(CLIENT_CERT_FILE).key -subj "/C=$(CERT_C)/L=$(CERT_L)/O=$(CERT_O)/CN=$(CLIENT_CERT_CN)" -out $(CLIENT_CERT_FILE).csr
+	openssl x509 -req -days $(CERT_DATE) -extfile <(printf "subjectAltName=$(ADDR)") -in $(CLIENT_CERT_FILE).csr -CA $(CA_FILE).crt -CAkey $(CA_FILE).key -CAcreateserial -out $(CLIENT_CERT_FILE).crt -sha256
 
 clean: ## clean output
 	rm -f client/main
